@@ -5,7 +5,7 @@ import tempfile
 import os
 
 # -------------------------------------------------
-# Replace placeholders (handles split runs)
+# Replace placeholders (handles split runs safely)
 # -------------------------------------------------
 def replace_text(doc, replacements):
     for p in doc.paragraphs:
@@ -24,11 +24,13 @@ def replace_text(doc, replacements):
                 replace_text(cell, replacements)
 
 # -------------------------------------------------
-# Copy template content safely
+# Copy body WITHOUT section properties (CRITICAL)
 # -------------------------------------------------
-def copy_body(src, dst):
-    for el in src.element.body:
-        dst.element.body.append(deepcopy(el))
+def copy_body_without_sectPr(src, dst):
+    for element in src.element.body:
+        if element.tag.endswith('sectPr'):
+            continue
+        dst.element.body.append(deepcopy(element))
 
 # -------------------------------------------------
 # Streamlit UI
@@ -60,11 +62,10 @@ if st.button("Generate Word File"):
 
     final_doc = Document()
 
-    # 🔥 remove default empty paragraph (CRITICAL)
+    # 🔥 Remove ALL default content
     final_doc.element.body.clear()
 
     template_file = "far_template.docx" if doc_type == "FAR" else "mod_template.docx"
-    first_page = True
 
     for batch_id, start, end in batches:
         for num in range(start, end + 1):
@@ -88,12 +89,8 @@ if st.button("Generate Word File"):
                     }
                 )
 
-            # 2 pages per number
-            for _ in range(2):
-                if not first_page:
-                    final_doc.add_page_break()
-                copy_body(temp_doc, final_doc)
-                first_page = False
+            # EXACT duplication of template page
+            copy_body_without_sectPr(temp_doc, final_doc)
 
     with tempfile.NamedTemporaryFile(delete=False, suffix=".docx") as tmp:
         final_doc.save(tmp.name)
