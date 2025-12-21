@@ -5,13 +5,13 @@ import tempfile
 import os
 
 # -------------------------------------------------
-# Replace placeholders (WORKS EVEN IF SPLIT IN RUNS)
+# Replace placeholders (handles split runs)
 # -------------------------------------------------
-def replace_text_in_doc(doc, replacements):
+def replace_text(doc, replacements):
     for p in doc.paragraphs:
         full_text = "".join(run.text for run in p.runs)
-        for key, val in replacements.items():
-            full_text = full_text.replace(key, val)
+        for k, v in replacements.items():
+            full_text = full_text.replace(k, v)
 
         if p.runs:
             p.runs[0].text = full_text
@@ -21,14 +21,14 @@ def replace_text_in_doc(doc, replacements):
     for table in doc.tables:
         for row in table.rows:
             for cell in row.cells:
-                replace_text_in_doc(cell, replacements)
+                replace_text(cell, replacements)
 
 # -------------------------------------------------
-# Copy full page safely
+# Copy template content safely
 # -------------------------------------------------
-def copy_document(source, target):
-    for element in source.element.body:
-        target.element.body.append(deepcopy(element))
+def copy_body(src, dst):
+    for el in src.element.body:
+        dst.element.body.append(deepcopy(el))
 
 # -------------------------------------------------
 # Streamlit UI
@@ -39,10 +39,10 @@ st.title("Batch Slip Generator")
 doc_type = st.selectbox("Select Type", ["FAR", "MOD"])
 batch_count = st.number_input("Number of Batches", min_value=1, step=1)
 
-batch_inputs = []
+batches = []
 
 for i in range(batch_count):
-    st.subheader(f"Batch {i+1}")
+    st.subheader(f"Batch {i + 1}")
     batch_id = st.text_input("Batch ID", key=f"id{i}")
 
     col1, col2 = st.columns(2)
@@ -51,7 +51,7 @@ for i in range(batch_count):
     with col2:
         end = st.number_input("To", min_value=start, key=f"e{i}")
 
-    batch_inputs.append((batch_id, start, end))
+    batches.append((batch_id, start, end))
 
 # -------------------------------------------------
 # Generate Document
@@ -59,31 +59,40 @@ for i in range(batch_count):
 if st.button("Generate Word File"):
 
     final_doc = Document()
-    template_file = "far_template.docx" if doc_type == "FAR" else "mod_template.docx"
 
+    # 🔥 remove default empty paragraph (CRITICAL)
+    final_doc.element.body.clear()
+
+    template_file = "far_template.docx" if doc_type == "FAR" else "mod_template.docx"
     first_page = True
 
-    for batch_id, start, end in batch_inputs:
+    for batch_id, start, end in batches:
         for num in range(start, end + 1):
 
             temp_doc = Document(template_file)
 
             if doc_type == "FAR":
-                replace_text_in_doc(
+                replace_text(
                     temp_doc,
-                    {"{{B2}}": batch_id, "{{B22}}": str(num)}
+                    {
+                        "{{B2}}": batch_id,
+                        "{{B22}}": f"({num})"
+                    }
                 )
             else:
-                replace_text_in_doc(
+                replace_text(
                     temp_doc,
-                    {"{{B1}}": batch_id, "{{B11}}": str(num)}
+                    {
+                        "{{B1}}": batch_id,
+                        "{{B11}}": f"({num})"
+                    }
                 )
 
-            # Each number = 2 pages
+            # 2 pages per number
             for _ in range(2):
                 if not first_page:
                     final_doc.add_page_break()
-                copy_document(temp_doc, final_doc)
+                copy_body(temp_doc, final_doc)
                 first_page = False
 
     with tempfile.NamedTemporaryFile(delete=False, suffix=".docx") as tmp:
