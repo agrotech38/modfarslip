@@ -1,57 +1,39 @@
 import streamlit as st
 from docx import Document
-from docx.shared import Pt
-from docx.enum.text import WD_BREAK
 import tempfile
 import os
 
-# ---------- Templates ----------
-FAR_TEMPLATE = """
-FARINA GUAR 200 MESH 5000 T/C
+# ------------------ Helper: Replace placeholders ------------------
+def replace_placeholders(doc, replacements):
+    # paragraphs
+    for para in doc.paragraphs:
+        for key, value in replacements.items():
+            if key in para.text:
+                for run in para.runs:
+                    run.text = run.text.replace(key, value)
 
-NET WEIGHT: 900KG
-GROSS WEIGHT: 903KG
-(Without Pallet)
+    # tables / boxes
+    for table in doc.tables:
+        for row in table.rows:
+            for cell in row.cells:
+                replace_placeholders(cell, replacements)
 
-BATCH NO.: {{B2}} {{B22}}
-"""
+# ------------------ Streamlit UI ------------------
+st.set_page_config(page_title="Batch Slip Generator", layout="centered")
+st.title("Batch Slip Generator")
 
-MOD_TEMPLATE = """
-F074025-000000
+doc_type = st.selectbox("Select Type", ["FAR", "MOD"])
+num_batches = st.number_input("Number of Batches", min_value=1, step=1)
 
-GUAR GUM POWDER
-MODIFIED
-
-NET WEIGHT: 900 KG
-GROSS WEIGHT: 903 KG
-(Without Pallet)
-
-BATCH NO.: {{B1}} {{B11}}
-"""
-
-# ---------- Helper Function ----------
-def add_two_pages(doc, text):
-    for _ in range(2):
-        p = doc.add_paragraph()
-        run = p.add_run(text)
-        run.font.size = Pt(12)
-        doc.add_page_break()
-
-# ---------- Streamlit UI ----------
-st.title("Batch Document Generator")
-
-doc_type = st.selectbox("Select Document Type", ["FAR", "MOD"])
-num_batches = st.number_input("Number of batches", min_value=1, step=1)
-
-batch_data = []
-
-st.subheader("Batch Details")
+batches = []
 
 for i in range(num_batches):
-    st.markdown(f"### Batch {i+1}")
+    st.subheader(f"Batch {i + 1}")
+
     batch_id = st.text_input(
-        f"Batch ID ({'B2' if doc_type == 'FAR' else 'B1'})",
-        key=f"batch_id_{i}"
+        "Batch ID",
+        key=f"batch_id_{i}",
+        placeholder="e.g. B/25/10001"
     )
 
     col1, col2 = st.columns(2)
@@ -70,35 +52,52 @@ for i in range(num_batches):
             key=f"end_{i}"
         )
 
-    batch_data.append((batch_id, start_num, end_num))
+    batches.append((batch_id, start_num, end_num))
 
-# ---------- Generate Document ----------
+# ------------------ Generate Document ------------------
 if st.button("Generate Word Document"):
-    doc = Document()
 
-    for batch_id, start, end in batch_data:
-        for attached_number in range(start, end + 1):
+    final_doc = Document()
+
+    template_path = "far_template.docx" if doc_type == "FAR" else "mod_template.docx"
+
+    for batch_id, start, end in batches:
+        for num in range(start, end + 1):
+
+            temp_doc = Document(template_path)
 
             if doc_type == "FAR":
-                content = FAR_TEMPLATE.replace("{{B2}}", batch_id)\
-                                      .replace("{{B22}}", str(attached_number))
+                replace_placeholders(
+                    temp_doc,
+                    {
+                        "{{B2}}": batch_id,
+                        "{{B22}}": str(num)
+                    }
+                )
             else:
-                content = MOD_TEMPLATE.replace("{{B1}}", batch_id)\
-                                      .replace("{{B11}}", str(attached_number))
+                replace_placeholders(
+                    temp_doc,
+                    {
+                        "{{B1}}": batch_id,
+                        "{{B11}}": str(num)
+                    }
+                )
 
-            add_two_pages(doc, content)
+            # Each number = 2 pages
+            for _ in range(2):
+                for element in temp_doc.element.body:
+                    final_doc.element.body.append(element)
+                final_doc.add_page_break()
 
-    # Save to temp file
     with tempfile.NamedTemporaryFile(delete=False, suffix=".docx") as tmp:
-        doc.save(tmp.name)
-        file_path = tmp.name
+        final_doc.save(tmp.name)
 
-    with open(file_path, "rb") as f:
-        st.download_button(
-            label="Download Word Document",
-            data=f,
-            file_name="batch_document.docx",
-            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-        )
+        with open(tmp.name, "rb") as f:
+            st.download_button(
+                label="Download Word File",
+                data=f,
+                file_name="batch_slips.docx",
+                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            )
 
-    os.remove(file_path)
+    os.remove(tmp.name)
