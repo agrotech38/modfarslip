@@ -7,9 +7,6 @@ from docx.oxml.ns import qn
 import tempfile
 import os
 
-# -------------------------------------------------
-# Helper: add border to table
-# -------------------------------------------------
 def set_table_border(table):
     tbl = table._tbl
     tblPr = tbl.tblPr
@@ -25,16 +22,12 @@ def set_table_border(table):
 
     tblPr.append(borders)
 
-# -------------------------------------------------
-# Create ONE slip page
-# -------------------------------------------------
 def create_slip(doc, doc_type, batch_id, number):
     table = doc.add_table(rows=1, cols=1)
     set_table_border(table)
 
     cell = table.cell(0, 0)
-    cell_paragraphs = cell.paragraphs
-    cell_paragraphs[0].clear()
+    cell.paragraphs[0].clear()
 
     def add_line(text, bold=False, size=12):
         p = cell.add_paragraph()
@@ -57,11 +50,6 @@ def create_slip(doc, doc_type, batch_id, number):
     add_line("")
     add_line(f"BATCH NO.: {batch_id} ({number})", bold=True, size=14)
 
-    doc.add_page_break()
-
-# -------------------------------------------------
-# Streamlit UI
-# -------------------------------------------------
 st.set_page_config(page_title="Batch Slip Generator")
 st.title("Batch Slip Generator")
 
@@ -82,9 +70,6 @@ for i in range(batch_count):
 
     batches.append((batch_id, start, end))
 
-# -------------------------------------------------
-# Generate document
-# -------------------------------------------------
 if st.button("Generate Word File"):
     doc = Document()
 
@@ -98,7 +83,6 @@ if st.button("Generate Word File"):
 
     with tempfile.NamedTemporaryFile(delete=False, suffix=".docx") as tmp:
         doc.save(tmp.name)
-
         with open(tmp.name, "rb") as f:
             st.download_button(
                 "Download batch_slips.docx",
