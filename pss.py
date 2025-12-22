@@ -18,16 +18,18 @@ def setup_landscape(doc):
     section.left_margin = Inches(0.4)
     section.right_margin = Inches(0.4)
 
-# ---------------- BORDER ----------------
+# ---------------- TABLE BORDER ----------------
 def set_table_border(table):
     tblPr = table._tbl.tblPr
     borders = OxmlElement('w:tblBorders')
+
     for edge in ('top', 'left', 'bottom', 'right'):
         e = OxmlElement(f'w:{edge}')
         e.set(qn('w:val'), 'single')
         e.set(qn('w:sz'), '18')
         e.set(qn('w:color'), '000000')
         borders.append(e)
+
     tblPr.append(borders)
 
 # ---------------- SLIP PAGE ----------------
@@ -37,21 +39,25 @@ def create_slip(doc, doc_type, batch_id, num):
     table = doc.add_table(rows=1, cols=1)
     table.autofit = False
 
-    table.columns[0].width = section.page_width - section.left_margin - section.right_margin
-    table.rows[0].height = section.page_height - section.top_margin - section.bottom_margin
+    table.columns[0].width = (
+        section.page_width - section.left_margin - section.right_margin
+    )
+    table.rows[0].height = (
+        section.page_height - section.top_margin - section.bottom_margin
+    )
 
     set_table_border(table)
     cell = table.cell(0, 0)
     cell.paragraphs[0].clear()
 
-    def line(text, size, bold=False):
+    def line(text, size=30, bold=False):
         p = cell.add_paragraph()
         p.alignment = WD_ALIGN_PARAGRAPH.LEFT
         r = p.add_run(text)
         r.font.size = Pt(size)
         r.bold = bold
 
-    # BIGGER TEXT
+    # ---------- CONTENT ----------
     if doc_type == "FAR":
         line("FARINA GUAR 200 MESH 5000 T/C", 34, True)
         line("")
@@ -68,7 +74,7 @@ def create_slip(doc, doc_type, batch_id, num):
     line(f"BATCH NO.: {batch_id} ({num})", 38, True)
 
 # ---------------- STREAMLIT UI ----------------
-st.set_page_config(page_title="Batch Slip Generator")
+st.set_page_config(page_title="Batch Slip Generator", layout="centered")
 st.title("Batch Slip Generator")
 
 doc_type = st.selectbox("Select Type", ["FAR", "MOD"])
@@ -76,28 +82,30 @@ batch_count = st.number_input("Number of Batches", min_value=1, step=1)
 
 batches = []
 for i in range(batch_count):
-    st.subheader(f"Batch {i+1}")
-    bid = st.text_input("Batch ID", key=f"id{i}")
-    c1, c2 = st.columns(2)
-    with c1:
-        s = st.number_input("From", min_value=1, key=f"s{i}")
-    with c2:
-        e = st.number_input("To", min_value=s, key=f"e{i}")
-    batches.append((bid, s, e))
+    st.subheader(f"Batch {i + 1}")
+    batch_id = st.text_input("Batch ID", key=f"id{i}")
 
-# ---------------- GENERATE ----------------
+    col1, col2 = st.columns(2)
+    with col1:
+        start = st.number_input("From", min_value=1, key=f"s{i}")
+    with col2:
+        end = st.number_input("To", min_value=start, key=f"e{i}")
+
+    batches.append((batch_id, start, end))
+
+# ---------------- GENERATE DOCUMENT ----------------
 if st.button("Generate Word File"):
     doc = Document()
     setup_landscape(doc)
 
     first_page = True
 
-    for bid, s, e in batches:
-        for num in range(s, e + 1):
-            for _ in range(2):  # 🔥 EXACTLY TWO PAGES
+    for batch_id, start, end in batches:
+        for num in range(start, end + 1):
+            for _ in range(2):  # 🔥 TWO PAGES PER NUMBER
                 if not first_page:
-                    doc.add_page_break()  # ONLY before new page
-                create_slip(doc, doc_type, bid, num)
+                    doc.add_page_break()
+                create_slip(doc, doc_type, batch_id, num)
                 first_page = False
 
     with tempfile.NamedTemporaryFile(delete=False, suffix=".docx") as tmp:
@@ -107,6 +115,6 @@ if st.button("Generate Word File"):
                 "Download batch_slips.docx",
                 f,
                 file_name="batch_slips.docx",
-                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
             )
     os.remove(tmp.name)
