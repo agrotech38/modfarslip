@@ -1,34 +1,63 @@
 import streamlit as st
 from docx import Document
-from copy import deepcopy
+from docx.shared import Pt
+from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.oxml import OxmlElement
+from docx.oxml.ns import qn
 import tempfile
 import os
 
 # -------------------------------------------------
-# Replace placeholders safely (split runs handled)
+# Helper: add border to table
 # -------------------------------------------------
-def replace_text(doc, replacements):
-    for p in doc.paragraphs:
-        full_text = "".join(run.text for run in p.runs)
-        for k, v in replacements.items():
-            full_text = full_text.replace(k, v)
+def set_table_border(table):
+    tbl = table._tbl
+    tblPr = tbl.tblPr
+    borders = OxmlElement('w:tblBorders')
 
-        if p.runs:
-            p.runs[0].text = full_text
-            for r in p.runs[1:]:
-                r.text = ""
+    for edge in ('top', 'left', 'bottom', 'right'):
+        elem = OxmlElement(f'w:{edge}')
+        elem.set(qn('w:val'), 'single')
+        elem.set(qn('w:sz'), '12')
+        elem.set(qn('w:space'), '0')
+        elem.set(qn('w:color'), '000000')
+        borders.append(elem)
 
-    for table in doc.tables:
-        for row in table.rows:
-            for cell in row.cells:
-                replace_text(cell, replacements)
+    tblPr.append(borders)
 
 # -------------------------------------------------
-# Append full document as-is (NO layout break)
+# Create ONE slip page
 # -------------------------------------------------
-def append_document(src, dst):
-    for element in src.element.body:
-        dst.element.body.append(deepcopy(element))
+def create_slip(doc, doc_type, batch_id, number):
+    table = doc.add_table(rows=1, cols=1)
+    set_table_border(table)
+
+    cell = table.cell(0, 0)
+    cell_paragraphs = cell.paragraphs
+    cell_paragraphs[0].clear()
+
+    def add_line(text, bold=False, size=12):
+        p = cell.add_paragraph()
+        p.alignment = WD_ALIGN_PARAGRAPH.LEFT
+        run = p.add_run(text)
+        run.bold = bold
+        run.font.size = Pt(size)
+
+    if doc_type == "FAR":
+        add_line("FARINA GUAR 200 MESH 5000 T/C", size=14)
+    else:
+        add_line("F074025-000000")
+        add_line("GUAR GUM POWDER")
+        add_line("MODIFIED")
+
+    add_line("")
+    add_line("NET WEIGHT: 900 KG")
+    add_line("GROSS WEIGHT: 903 KG")
+    add_line("(Without Pallet)")
+    add_line("")
+    add_line(f"BATCH NO.: {batch_id} ({number})", bold=True, size=14)
+
+    doc.add_page_break()
 
 # -------------------------------------------------
 # Streamlit UI
@@ -54,47 +83,21 @@ for i in range(batch_count):
     batches.append((batch_id, start, end))
 
 # -------------------------------------------------
-# Generate Document (CORRECT WAY)
+# Generate document
 # -------------------------------------------------
 if st.button("Generate Word File"):
+    doc = Document()
 
-    final_doc = Document()
-    final_doc.element.body.clear()
-
-    template_file = "far_template.docx" if doc_type == "FAR" else "mod_template.docx"
     first = True
-
     for batch_id, start, end in batches:
         for num in range(start, end + 1):
-
-            temp_doc = Document(template_file)
-
-            if doc_type == "FAR":
-                replace_text(
-                    temp_doc,
-                    {
-                        "{{B2}}": batch_id,
-                        "{{B22}}": f"({num})"
-                    }
-                )
-            else:
-                replace_text(
-                    temp_doc,
-                    {
-                        "{{B1}}": batch_id,
-                        "{{B11}}": f"({num})"
-                    }
-                )
-
-            # Add page break ONLY between slips
             if not first:
-                final_doc.add_page_break()
-
-            append_document(temp_doc, final_doc)
+                doc.add_page_break()
+            create_slip(doc, doc_type, batch_id, num)
             first = False
 
     with tempfile.NamedTemporaryFile(delete=False, suffix=".docx") as tmp:
-        final_doc.save(tmp.name)
+        doc.save(tmp.name)
 
         with open(tmp.name, "rb") as f:
             st.download_button(
