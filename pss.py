@@ -39,11 +39,9 @@ def create_slip(doc, doc_type, batch_id, num):
     table = doc.add_table(rows=1, cols=1)
     table.autofit = False
 
+    # Full width only (do NOT set row height → avoids blank pages)
     table.columns[0].width = (
         section.page_width - section.left_margin - section.right_margin
-    )
-    table.rows[0].height = (
-        section.page_height - section.top_margin - section.bottom_margin
     )
 
     set_table_border(table)
@@ -57,7 +55,7 @@ def create_slip(doc, doc_type, batch_id, num):
         r.font.size = Pt(size)
         r.bold = bold
 
-    # ---------- CONTENT ----------
+    # -------- CONTENT --------
     if doc_type == "FAR":
         line("FARINA GUAR 200 MESH 5000 T/C", 34, True)
         line("")
@@ -102,7 +100,7 @@ if st.button("Generate Word File"):
 
     for batch_id, start, end in batches:
         for num in range(start, end + 1):
-            for _ in range(2):  # 🔥 TWO PAGES PER NUMBER
+            for _ in range(2):   # 🔥 TWO IDENTICAL PAGES PER NUMBER
                 if not first_page:
                     doc.add_page_break()
                 create_slip(doc, doc_type, batch_id, num)
@@ -117,4 +115,5 @@ if st.button("Generate Word File"):
                 file_name="batch_slips.docx",
                 mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
             )
+
     os.remove(tmp.name)
