@@ -30,18 +30,30 @@ def set_table_border(table):
 
 def create_slip(doc, doc_type, batch_id, num):
     section = doc.sections[0]
+    page_width = section.page_width - section.left_margin - section.right_margin
+    page_height = section.page_height - section.top_margin - section.bottom_margin
+
     table = doc.add_table(rows=1, cols=1)
     table.autofit = False
-    table.columns[0].width = section.page_width - section.left_margin - section.right_margin
+    table.columns[0].width = page_width
     set_table_border(table)
-    cell = table.cell(0, 0)
+
+    row = table.rows[0]
+    row.height = page_height
+    trPr = row._tr.get_or_add_trPr()
+    h = OxmlElement('w:trHeight')
+    h.set(qn('w:val'), str(int(page_height)))
+    h.set(qn('w:hRule'), 'exact')
+    trPr.append(h)
+
+    cell = row.cells[0]
     cell.paragraphs[0].clear()
 
     tcPr = cell._tc.get_or_add_tcPr()
     tcMar = OxmlElement('w:tcMar')
     for side in ('top', 'left', 'bottom', 'right'):
         mar = OxmlElement(f'w:{side}')
-        mar.set(qn('w:w'), '600')
+        mar.set(qn('w:w'), '500')
         mar.set(qn('w:type'), 'dxa')
         tcMar.append(mar)
     tcPr.append(tcMar)
