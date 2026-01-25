@@ -1,38 +1,47 @@
 import streamlit as st
 from docx import Document
-from docxcompose.composer import Composer
+import copy
 import tempfile
 import os
 
 
 # -----------------------------
-# Replace placeholders in doc
+# Replace placeholders
 # -----------------------------
-def replace_text(doc, b1, b2):
-    for p in doc.paragraphs:
-        if "{{B1}}" in p.text or "{{B2}}" in p.text:
-            for run in p.runs:
-                run.text = run.text.replace("{{B1}}", str(b1))
-                run.text = run.text.replace("{{B2}}", str(b2))
+def replace_placeholders(doc, b1, b2):
+    b2_text = f"[{b2}]"
 
-    # also replace inside tables if any
+    def replace_para(p):
+        for run in p.runs:
+            run.text = run.text.replace("{{B1}}", str(b1))
+            run.text = run.text.replace("{{B2}}", b2_text)
+
+    for p in doc.paragraphs:
+        replace_para(p)
+
     for table in doc.tables:
         for row in table.rows:
             for cell in row.cells:
                 for p in cell.paragraphs:
-                    for run in p.runs:
-                        run.text = run.text.replace("{{B1}}", str(b1))
-                        run.text = run.text.replace("{{B2}}", str(b2))
+                    replace_para(p)
 
 
 # -----------------------------
-# Build final doc from template
+# TRUE page cloning (NO shift)
 # -----------------------------
+def append_template_page(master, template_path, b1, b2):
+    temp_doc = Document(template_path)
+    replace_placeholders(temp_doc, b1, b2)
+
+    for element in temp_doc.element.body:
+        master.element.body.append(copy.deepcopy(element))
+
+
 def build_file(template_path, batches):
-    master = Document(template_path)
-    composer = Composer(master)
+    master = Document()
 
-    first = True
+    # remove blank first paragraph
+    master.element.body.clear()
 
     for batch in batches:
         b1 = batch["b1"]
@@ -41,36 +50,24 @@ def build_file(template_path, batches):
 
         for i in range(pages):
             b2_val = start_b2 + (i // 2)
-
-            doc = Document(template_path)
-            replace_text(doc, b1, b2_val)
-
-            if first:
-                master = doc
-                composer = Composer(master)
-                first = False
-            else:
-                composer.append(doc)
+            append_template_page(master, template_path, b1, b2_val)
 
     tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".docx")
-    composer.save(tmp.name)
+    master.save(tmp.name)
     return tmp.name
 
 
 # =============================
 # UI
 # =============================
-st.title("📄 Batch Label Generator (Template Safe)")
-
-st.success("Your template formatting will remain EXACT — nothing shifts 👍")
+st.title("📄 Batch Label Generator (Perfect Alignment)")
 
 uploaded_template = st.file_uploader(
-    "Upload your template .docx (with {{B1}} and {{B2}})",
+    "Upload template (.docx with {{B1}} {{B2}})",
     type=["docx"]
 )
 
 if uploaded_template:
-
     template_path = os.path.join(tempfile.gettempdir(), "template.docx")
     with open(template_path, "wb") as f:
         f.write(uploaded_template.read())
@@ -103,7 +100,7 @@ if uploaded_template:
 
         with open(out_file, "rb") as f:
             st.download_button(
-                "⬇ Download Final DOCX",
+                "⬇ Download DOCX",
                 f,
                 file_name="labels_output.docx",
                 mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
