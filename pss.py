@@ -3,7 +3,7 @@ from docx import Document
 import copy
 import tempfile
 
-TEMPLATE_PATH = "template.docx"   # auto load from repo
+TEMPLATE_PATH = "mod001.docx"   # auto load from repo
 
 
 def replace_placeholders(doc, b1, b2):
