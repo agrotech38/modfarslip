@@ -2,12 +2,10 @@ import streamlit as st
 from docx import Document
 import copy
 import tempfile
-import os
+
+TEMPLATE_PATH = "template.docx"   # auto load from repo
 
 
-# -----------------------------
-# Replace placeholders
-# -----------------------------
 def replace_placeholders(doc, b1, b2):
     b2_text = f"[{b2}]"
 
@@ -26,82 +24,57 @@ def replace_placeholders(doc, b1, b2):
                     replace_para(p)
 
 
-# -----------------------------
-# TRUE page cloning (NO shift)
-# -----------------------------
-def append_template_page(master, template_path, b1, b2):
-    temp_doc = Document(template_path)
-    replace_placeholders(temp_doc, b1, b2)
+def append_template(master, b1, b2):
+    temp = Document(TEMPLATE_PATH)
+    replace_placeholders(temp, b1, b2)
 
-    for element in temp_doc.element.body:
-        master.element.body.append(copy.deepcopy(element))
+    for el in temp.element.body:
+        master.element.body.append(copy.deepcopy(el))
 
 
-def build_file(template_path, batches):
+def build_file(batches):
     master = Document()
-
-    # remove blank first paragraph
     master.element.body.clear()
 
     for batch in batches:
         b1 = batch["b1"]
-        start_b2 = batch["start_b2"]
+        start = batch["start_b2"]
         pages = batch["pages"]
 
         for i in range(pages):
-            b2_val = start_b2 + (i // 2)
-            append_template_page(master, template_path, b1, b2_val)
+            b2 = start + (i // 2)
+            append_template(master, b1, b2)
 
     tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".docx")
     master.save(tmp.name)
     return tmp.name
 
 
-# =============================
-# UI
-# =============================
-st.title("📄 Batch Label Generator (Perfect Alignment)")
+# ---------------- UI ----------------
 
-uploaded_template = st.file_uploader(
-    "Upload template (.docx with {{B1}} {{B2}})",
-    type=["docx"]
-)
+st.title("📄 Batch Label Generator")
 
-if uploaded_template:
-    template_path = os.path.join(tempfile.gettempdir(), "template.docx")
-    with open(template_path, "wb") as f:
-        f.write(uploaded_template.read())
+num_batches = st.number_input("Number of batches", 1, 10, 1)
 
-    num_batches = st.number_input("Number of batches", min_value=1, value=1)
+batches = []
 
-    batches = []
+for i in range(num_batches):
+    st.subheader(f"Batch {i+1}")
+    c1, c2, c3 = st.columns(3)
 
-    for i in range(num_batches):
-        st.subheader(f"Batch {i+1}")
-        c1, c2, c3 = st.columns(3)
+    b1 = c1.text_input("B1", key=f"b1{i}")
+    start_b2 = c2.number_input("Start B2", value=1, key=f"s{i}")
+    pages = c3.number_input("Pages", value=10, key=f"p{i}")
 
-        with c1:
-            b1 = st.text_input("B1", key=f"b1{i}")
+    batches.append({
+        "b1": b1,
+        "start_b2": start_b2,
+        "pages": pages
+    })
 
-        with c2:
-            start_b2 = st.number_input("Start B2", value=1, key=f"s{i}")
 
-        with c3:
-            pages = st.number_input("Pages", value=10, key=f"p{i}")
+if st.button("Generate File"):
+    file_path = build_file(batches)
 
-        batches.append({
-            "b1": b1,
-            "start_b2": start_b2,
-            "pages": pages
-        })
-
-    if st.button("Generate File"):
-        out_file = build_file(template_path, batches)
-
-        with open(out_file, "rb") as f:
-            st.download_button(
-                "⬇ Download DOCX",
-                f,
-                file_name="labels_output.docx",
-                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-            )
+    with open(file_path, "rb") as f:
+        st.download_button("⬇ Download DOCX", f, "labels_output.docx")
