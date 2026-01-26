@@ -5,6 +5,11 @@ import tempfile
 import os
 
 TEMPLATE_PATH = "mod001.docx"
+st.set_page_config(
+    page_title="MOD JTS Label Generator",
+    page_icon="📄",
+    layout="centered"
+)
 
 
 # -----------------------------
