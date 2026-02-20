@@ -94,7 +94,7 @@ def build_file(template_path, batches):
 # =====================================
 # UI
 # =====================================
-st.title("🏷️ MOD JTS Label Generator")
+
 
 
 # ---------- TEMPLATE SELECTION ----------
