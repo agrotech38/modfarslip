@@ -9,7 +9,7 @@ import os
 # PAGE CONFIG (Chrome tab name)
 # =====================================
 st.set_page_config(
-    page_title="MOD JTS Label Generator",
+    page_title="MOD FAR JTS",
     page_icon="🏷️",
     layout="centered"
 )
