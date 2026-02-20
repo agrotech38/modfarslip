@@ -98,9 +98,8 @@ st.title("🏷️ MOD JTS Label Generator")
 
 
 # ---------- TEMPLATE SELECTION ----------
-st.subheader("Step 1 — Select Template")
 
-template_code = st.text_input("Enter Template Code (001 / 002)")
+template_code = st.text_input("Enter Code to Begin!")
 
 template_path = None
 
