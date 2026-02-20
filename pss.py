@@ -66,7 +66,7 @@ def clean_filename(text):
 # =====================================
 # Build file
 # =====================================
-def build_file(template_path, batches):
+def build_file(template_path, batches, template_code):
     master = Document()
     master.element.body.clear()
 
@@ -86,7 +86,14 @@ def build_file(template_path, batches):
     tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".docx")
     master.save(tmp.name)
 
-    filename = "MOD JTS " + " ".join(used_batches) + ".docx"
+    if template_code == "001":
+        prefix = "MOD JTS"
+    elif template_code == "002":
+        prefix = "FAR JTS"
+    else:
+        prefix = "JTS"
+
+    filename = prefix + " " + " ".join(used_batches) + ".docx"
 
     return tmp.name, filename
 
@@ -140,7 +147,7 @@ if template_path:
 
     # ---------- GENERATE ----------
     if st.button("Generate File"):
-        file_path, filename = build_file(template_path, batches)
+        file_path, filename = build_file(template_path, batches, template_code)
 
         with open(file_path, "rb") as f:
             st.download_button(
